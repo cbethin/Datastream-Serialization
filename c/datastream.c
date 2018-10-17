@@ -19,11 +19,11 @@
     -- OUTPUT STREAM --
     The output stream is formated as an alternating series ABCBC... format. For every field C, a 4-byte array B is created to indicate the size of the field
     (encoded in Big Endian byte order). The fields and their size arrays are then ordered in the BCBC... format. When the list of fields is converted
-    into this format, a third 4-byte array A is created which dictates the size of the entire datastream, and is appended to the front of the buffer 
+    into this format, a third 4-byte array A is created which dictates the size of the entire datastream (in number of fields), and is appended to the front of the buffer 
     that will be sent over the socket.
 
     -- INPUT BUFFER -- 
-    When extracting on the receiving end, an application can extract a list of fields by first extracting the size of the entire datastream contained in
+    When extracting on the receiving end, an application can extract a list of fields by first extracting the size of the entire datastream (in number of fields) contained in
     the first four bytes. Then, for each field until the size of the datastream is covered, the application can extract the size of the field, and, using
     that field size, extract the corresponding amount of bytes from the input buffer.
 */
@@ -151,16 +151,25 @@ void datastream_to_byte_array(unsigned char *buf, int size_buf) { // feed it a m
 void byte_array_to_datastream(char *buf, int size_buf, struct datastream *d) {
     int n = 0;
 
+    // printf("DATA: \n");
+    // for (int i = 0; i < size_buf; i++) {
+    //     printf("%x-", buf[i]);
+    // }
+    // printf("\n");
+
     unsigned char n_fields_slice[INT_BYTE_SIZE];
     for (int j = 0; j < INT_BYTE_SIZE; j++, n++) {
         n_fields_slice[j] = buf[n];
     }
     int n_fields = char_array_to_int(n_fields_slice);
+
+    // If n_fields is > MAX_PACKETS then something wrong, just break out and ignore this packet
     if (n_fields > MAX_PACKETS) {
         return;
     }
 
     for (int i = 0; i < n_fields; i++) {
+
         // Extract size of field 
         unsigned char buf_slice[INT_BYTE_SIZE];
         for (int j = 0; j < INT_BYTE_SIZE; j++, n++) {
@@ -168,17 +177,20 @@ void byte_array_to_datastream(char *buf, int size_buf, struct datastream *d) {
         }
 
         int field_size = char_array_to_int(buf_slice);
+
+        // If field size is empty, we finished, return
         if (field_size == 0 || field_size > MAX_FIELD_SIZE) {
             return;
         }
 
         // Extract data into array
-        char *data = malloc(field_size);
+        char *data = malloc(field_size+1);
         for (int j = 0; j < field_size; j++, n++) {
             data[j] = buf[n];
         }
-        
-        add_field_to_datastream_object(data, field_size, d);
+        memset(&data[field_size], 0, 1); // make sure it's a null-terminated string
+
+        add_field_to_datastream_object(data, field_size+1, d);
     }
 }
 

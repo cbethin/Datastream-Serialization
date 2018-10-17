@@ -5,12 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h>
+
+#ifndef DATASTREAM_H__
+#define DATASTREAM_H__
 
 struct datastream { // List of fields
     struct field *firstField;
@@ -62,3 +64,5 @@ void handle_response(struct datastream *instream);
 // Helper functions
 void int_to_fourbyte_array(int n, unsigned char *buf);
 int char_array_to_int(unsigned char *buf);
+
+#endif /* DATASTREAM_H__ */
