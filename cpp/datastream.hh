@@ -59,6 +59,7 @@ private:
     }
 
 public:
+    Buffer() { /* Create empty buffer */ }
     Buffer(std::vector<Field> &fields) {  
         for(std::vector<Field>::iterator i = fields.begin(); i != fields.end(); i++) {
             addFieldToByteArray(*i);
@@ -67,9 +68,11 @@ public:
     Buffer(int n) {
         addIntToByteArray(n);
     }
+
     Buffer(const Field& f) {
         addFieldToByteArray(f);
     }
+
     Buffer(unsigned char *c) { // Convert from byte array to Buffer object
         deseralizeFields(c, std::bind(&Buffer::addFieldToByteArray, this, std::placeholders::_1));
     }
@@ -129,6 +132,10 @@ public:
         }
     }
 
+    void append(char c) {
+        buf.push_back(c);
+    }
+
     friend std::ostream& operator <<(std::ostream& s, Buffer b) {
         for (auto i = b.buf.begin(); i != b.buf.end(); i++) {
             s << std::hex << int(*i) << "-";
@@ -156,6 +163,55 @@ public:
         // std::cout << "Deconstructing " << data[0] << "\n";
     }
 
+    static Datastream sendToAddress(Buffer outbuf, const std::string& address, int port) {
+        int network_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        Datastream response;
+
+        // Specify address for the socket to connect to;
+        struct sockaddr_in server_address;
+        server_address.sin_family = AF_INET;
+        server_address.sin_port = htons(port);
+        server_address.sin_addr.s_addr = inet_addr(address.c_str());
+
+        // Establish connection to server
+        if (connect(network_socket, (struct sockaddr *) &server_address, sizeof(server_address)) == -1) {
+            std:: cout << "Error connecting.\n";
+            sleep(1);
+            sendToAddress(outbuf, address, port);
+            return response;
+        }
+
+
+        // Convert datastream to buffer and then send out 
+        // it's bytes 
+        if (send(network_socket, outbuf.bytes(), outbuf.size(), 0) < 0) {
+            std::cout << "Error sending data.\n";
+        }
+        
+        // receive
+        int bytes_received = 0;
+        int len = 0, maxlen = MAX_PACKET_SIZE;
+        unsigned char *buffer = new unsigned char[MAX_PACKET_SIZE];
+        unsigned char *pbuffer = buffer;
+            
+        while ((bytes_received = recv(network_socket, pbuffer, MAX_PACKET_SIZE, 0)) > 0) {
+            pbuffer += bytes_received;
+            maxlen -= bytes_received;
+            len += bytes_received;
+
+            buffer[len] = '\0';
+
+            response = Datastream(buffer);
+            close(network_socket);
+            delete[] buffer;
+
+            return response;
+        }
+
+        return response;
+        // Maybe clear datastream?
+    }
+
     Datastream sendTo(const std::string& address, int port) {
         int network_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         Datastream response;
@@ -175,6 +231,8 @@ public:
         }
 
 
+        // Convert datastream to buffer and then send out 
+        // it's bytes 
         Buffer outbuf(this->data);
         if (send(network_socket, outbuf.bytes(), outbuf.size(), 0) < 0) {
             std::cout << "Error sending data.\n";
